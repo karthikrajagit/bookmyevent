@@ -1,68 +1,81 @@
-'use server';
+'use server'
 
-import { CreateUserParams, UpdateUserParams } from "@/types";
-import { handleError } from "../utils";
-import { connectToDatabase } from "../database";
-import User from "../models/user.model";
-import Event from "../models/event.model";
-import Order from "../models/order.model";
-import Category from "../models/category.model";
+import { revalidatePath } from 'next/cache'
 
-export const createUser = async (user: CreateUserParams) => {
+import { connectToDatabase } from '@/lib/database'
+import User from '@/lib/models/user.model'
+import Order from '@/lib/models/order.model'
+import Event from '@/lib/models/event.model'
+import { handleError } from '@/lib/utils'
 
-    try {
-        await connectToDatabase();
+import { CreateUserParams, UpdateUserParams } from '@/types'
 
-        const newUser = await User.create(user);
+export async function createUser(user: CreateUserParams) {
+  try {
+    await connectToDatabase()
 
-        return JSON.parse(JSON.stringify(newUser));
-    } catch (error) {
-        handleError(error)
-    }
+    const newUser = await User.create(user)
+    return JSON.parse(JSON.stringify(newUser))
+  } catch (error) {
+    handleError(error)
+  }
 }
 
-export const updateUser = async (id: string, user: UpdateUserParams) => {
-    try {
-        await connectToDatabase();
+export async function getUserById(userId: string) {
+  try {
+    await connectToDatabase()
 
-        const updatedUser = await User.findOneAndUpdate({ clerkId: id }, user, {
-            new : true
-        })
+    const user = await User.findById(userId)
 
-        if(!updatedUser) {
-            throw new Error("User not found")
-        }
-        return JSON.parse(JSON.stringify(updatedUser)); 
-    } catch (error) {
-        handleError(error)
-    }
+    if (!user) throw new Error('User not found')
+    return JSON.parse(JSON.stringify(user))
+  } catch (error) {
+    handleError(error)
+  }
 }
 
-export const deletedUser = async(id: string) => {
-    try {
-        await connectToDatabase();
+export async function updateUser(clerkId: string, user: UpdateUserParams) {
+  try {
+    await connectToDatabase()
 
-        const userToDelete = await User.findOneAndDelete({ clerkId: id })
+    const updatedUser = await User.findOneAndUpdate({ clerkId }, user, { new: true })
 
-        if(!userToDelete) {
-            throw new Error("User not found")
-        }
+    if (!updatedUser) throw new Error('User update failed')
+    return JSON.parse(JSON.stringify(updatedUser))
+  } catch (error) {
+    handleError(error)
+  }
+}
 
-        await Promise.all([
-            Event.updateMany(
-                {_id: {$in: userToDelete.events}},
-                {$pull: {attendees: userToDelete._id}}
-            ),
+export async function deleteUser(clerkId: string) {
+  try {
+    await connectToDatabase()
 
-            Order.updateMany(
-                {_id: {$in: userToDelete.orders}},
-                {$unset: {buyer: 1}}
-            )
-        ])
-        const deletedUser = await User.findByIdAndDelete(userToDelete._id)
+    // Find user to delete
+    const userToDelete = await User.findOne({ clerkId })
 
-        return JSON.parse(JSON.stringify(deletedUser));
-    } catch (error) {
-        handleError(error)
+    if (!userToDelete) {
+      throw new Error('User not found')
     }
+
+    // Unlink relationships
+    await Promise.all([
+      // Update the 'events' collection to remove references to the user
+      Event.updateMany(
+        { _id: { $in: userToDelete.events } },
+        { $pull: { organizer: userToDelete._id } }
+      ),
+
+      // Update the 'orders' collection to remove references to the user
+      Order.updateMany({ _id: { $in: userToDelete.orders } }, { $unset: { buyer: 1 } }),
+    ])
+
+    // Delete user
+    const deletedUser = await User.findByIdAndDelete(userToDelete._id)
+    revalidatePath('/')
+
+    return deletedUser ? JSON.parse(JSON.stringify(deletedUser)) : null
+  } catch (error) {
+    handleError(error)
+  }
 }

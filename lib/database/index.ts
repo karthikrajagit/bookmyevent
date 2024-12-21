@@ -1,25 +1,20 @@
-import mongoose from "mongoose";
-import dotenv from "dotenv";
+import mongoose from 'mongoose';
 
-dotenv.config();
+const MONGODB_URI = process.env.MONGODB_URI;
 
-
-
-
-let catched = (global as any).mongoose || {Connection: null, promise: null}
+let cached = (global as any).mongoose || { conn: null, promise: null };
 
 export const connectToDatabase = async () => {
-    if (catched.Connection) return catched.Connection;
-    
-    if (!process.env.MONGODB_URL) {
-        throw new Error("MONGODB_URL is not defined");
-    }
-    
-    catched.promise = catched.promise || mongoose.connect(process.env.MONGODB_URL, {
-        dbName: "bookmyevent",
-        bufferCommands: false,
-    });
+  if (cached.conn) return cached.conn;
 
-    catched.Connection = await catched.promise;
-    return catched.Connection;
+  if(!MONGODB_URI) throw new Error('MONGODB_URI is missing');
+
+  cached.promise = cached.promise || mongoose.connect(MONGODB_URI, {
+    dbName: 'evently',
+    bufferCommands: false,
+  })
+
+  cached.conn = await cached.promise;
+
+  return cached.conn;
 }
