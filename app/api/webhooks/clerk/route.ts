@@ -3,7 +3,7 @@ import { headers } from 'next/headers'
 import { clerkClient, WebhookEvent } from '@clerk/nextjs/server'
 import { createUser, deleteUser, updateUser } from '@/lib/actions/user.actions'
 import { NextResponse } from 'next/server'
-import * as clerk from '@clerk/nextjs';
+
  
 export async function POST(req: Request) {
  
